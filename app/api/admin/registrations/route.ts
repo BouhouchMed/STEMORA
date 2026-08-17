@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { readRegistrations, type StoredRegistration } from "@/lib/registrations-store";
+import {
+  isFileWriteError,
+  readRegistrations,
+  type StoredRegistration
+} from "@/lib/registrations-store";
 
 const columns: Array<[keyof StoredRegistration, string]> = [
   ["id", "ID"],
@@ -56,20 +60,39 @@ export async function GET(request: Request) {
     );
   }
 
-  const { searchParams } = new URL(request.url);
-  const format = searchParams.get("format") || "json";
-  const registrations = (await readRegistrations())
-    .filter((registration) => registration.status === "new")
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  try {
+    const { searchParams } = new URL(request.url);
+    const format = searchParams.get("format") || "json";
+    const registrations = (await readRegistrations())
+      .filter((registration) => registration.status === "new")
+      .sort((a, b) => b.created_at.localeCompare(a.created_at));
 
-  if (format === "csv") {
-    return new Response(toCsv(registrations), {
-      headers: {
-        "Content-Disposition": `attachment; filename="stemora-new-registrations.csv"`,
-        "Content-Type": "text/csv; charset=utf-8"
-      }
-    });
+    if (format === "csv") {
+      return new Response(toCsv(registrations), {
+        headers: {
+          "Content-Disposition": `attachment; filename="stemora-new-registrations.csv"`,
+          "Content-Type": "text/csv; charset=utf-8"
+        }
+      });
+    }
+
+    return NextResponse.json({ registrations });
+  } catch (error) {
+    console.error("Admin registrations read failed", error);
+
+    if (isFileWriteError(error)) {
+      return NextResponse.json(
+        {
+          message:
+            "Le serveur ne peut pas lire le fichier JSON. تأكد أن REGISTRATIONS_FILE_PATH صحيح وقابل للقراءة."
+        },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Erreur inattendue / وقع خطأ غير متوقع." },
+      { status: 500 }
+    );
   }
-
-  return NextResponse.json({ registrations });
 }

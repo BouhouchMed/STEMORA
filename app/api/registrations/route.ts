@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { registrationSchema } from "@/lib/registration-schema";
-import { saveRegistration } from "@/lib/registrations-store";
+import { isFileWriteError, saveRegistration } from "@/lib/registrations-store";
 
 export async function POST(request: Request) {
   try {
@@ -18,6 +18,18 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    console.error("Registration save failed", error);
+
+    if (isFileWriteError(error)) {
+      return NextResponse.json(
+        {
+          message:
+            "Le serveur ne peut pas écrire dans le fichier JSON. تأكد أن مسار REGISTRATIONS_FILE_PATH قابل للكتابة."
+        },
+        { status: 500 }
+      );
+    }
+
     return NextResponse.json(
       {
         message: "Erreur inattendue / وقع خطأ غير متوقع."

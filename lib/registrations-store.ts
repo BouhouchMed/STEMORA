@@ -3,8 +3,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { calculateAge, type RegistrationFormValues } from "@/lib/registration-schema";
 
-const dataDirectory = path.join(process.cwd(), "data");
-const registrationsFile = path.join(dataDirectory, "registrations.json");
+const registrationsFile =
+  process.env.REGISTRATIONS_FILE_PATH || path.join(process.cwd(), "data", "registrations.json");
+const dataDirectory = path.dirname(registrationsFile);
 
 export type StoredRegistration = {
   id: string;
@@ -41,8 +42,6 @@ export async function readRegistrations() {
 }
 
 export async function saveRegistration(values: RegistrationFormValues) {
-  await mkdir(dataDirectory, { recursive: true });
-  const registrations = await readRegistrations();
   const registration: StoredRegistration = {
     id: randomUUID(),
     child_name: values.childName,
@@ -64,7 +63,17 @@ export async function saveRegistration(values: RegistrationFormValues) {
     created_at: new Date().toISOString()
   };
 
+  await mkdir(dataDirectory, { recursive: true });
+  const registrations = await readRegistrations();
   registrations.push(registration);
   await writeFile(registrationsFile, `${JSON.stringify(registrations, null, 2)}\n`, "utf8");
   return registration;
+}
+
+export function isFileWriteError(error: unknown) {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    ["EACCES", "ENOENT", "EROFS", "EPERM"].includes(String(error.code))
+  );
 }
