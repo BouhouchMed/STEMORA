@@ -6,6 +6,7 @@ build/
 
 .env
 .env*.local
+data/registrations.json
 
 *.tsbuildinfo
 npm-debug.log*
