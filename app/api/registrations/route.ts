@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { calculateAge, registrationSchema } from "@/lib/registration-schema";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
+function getSupabaseEnvStatus() {
+  return {
+    hasSupabaseUrl: Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
+    hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    hasAnonKey: Boolean(process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -38,7 +46,16 @@ export async function POST(request: Request) {
     if (error) {
       console.error("Supabase registration insert failed", error);
       return NextResponse.json(
-        { message: "Impossible d'enregistrer la demande. تعذر حفظ الطلب." },
+        {
+          message: "Impossible d'enregistrer la demande. تعذر حفظ الطلب.",
+          error: {
+            code: error.code,
+            message: error.message,
+            hint: error.hint,
+            details: error.details
+          },
+          env: getSupabaseEnvStatus()
+        },
         { status: 500 }
       );
     }
@@ -50,7 +67,8 @@ export async function POST(request: Request) {
     if (error instanceof Error && error.message.includes("Supabase environment variables")) {
       return NextResponse.json(
         {
-          message: "Configuration Supabase manquante. إعدادات Supabase ناقصة."
+          message: "Configuration Supabase manquante. إعدادات Supabase ناقصة.",
+          env: getSupabaseEnvStatus()
         },
         { status: 500 }
       );
@@ -58,7 +76,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        message: "Erreur inattendue / وقع خطأ غير متوقع."
+        message: "Erreur inattendue / وقع خطأ غير متوقع.",
+        env: getSupabaseEnvStatus()
       },
       { status: 500 }
     );
