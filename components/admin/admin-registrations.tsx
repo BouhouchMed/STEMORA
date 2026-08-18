@@ -89,7 +89,7 @@ export function AdminRegistrations() {
               </div>
               <h1 className="mt-4 text-3xl font-bold">Nouveaux inscrits</h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-navy/65">
-                Chargez les demandes enregistrées dans le fichier JSON, puis exportez-les en CSV.
+                Chargez les demandes enregistrées dans Supabase, puis exportez-les en CSV.
               </p>
             </div>
             <div className="rounded-2xl bg-accent/16 px-5 py-4 text-center">

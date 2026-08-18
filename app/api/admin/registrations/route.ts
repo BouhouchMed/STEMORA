@@ -1,9 +1,26 @@
 import { NextResponse } from "next/server";
-import {
-  isFileWriteError,
-  readRegistrations,
-  type StoredRegistration
-} from "@/lib/registrations-store";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+
+type StoredRegistration = {
+  id: string;
+  child_name: string;
+  child_birth_date: string;
+  child_age?: number | null;
+  school_level: string;
+  city_country: string;
+  experience_level: string;
+  selected_programs: string[];
+  parent_name: string;
+  parent_phone: string;
+  parent_email: string;
+  preferred_contact: string;
+  preferred_days: string[];
+  preferred_period: string;
+  course_type: string;
+  marketing_consent: boolean;
+  status: string;
+  created_at: string;
+};
 
 const columns: Array<[keyof StoredRegistration, string]> = [
   ["id", "ID"],
@@ -63,9 +80,22 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const format = searchParams.get("format") || "json";
-    const registrations = (await readRegistrations())
-      .filter((registration) => registration.status === "new")
-      .sort((a, b) => b.created_at.localeCompare(a.created_at));
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("registrations")
+      .select("*")
+      .eq("status", "new")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Supabase registrations read failed", error);
+      return NextResponse.json(
+        { message: "Impossible de charger les inscriptions. تعذر تحميل التسجيلات." },
+        { status: 500 }
+      );
+    }
+
+    const registrations = (data || []) as StoredRegistration[];
 
     if (format === "csv") {
       return new Response(toCsv(registrations), {
@@ -80,11 +110,10 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("Admin registrations read failed", error);
 
-    if (isFileWriteError(error)) {
+    if (error instanceof Error && error.message.includes("Supabase environment variables")) {
       return NextResponse.json(
         {
-          message:
-            "Le serveur ne peut pas lire le fichier JSON. تأكد أن REGISTRATIONS_FILE_PATH صحيح وقابل للقراءة."
+          message: "Configuration Supabase manquante. إعدادات Supabase ناقصة."
         },
         { status: 500 }
       );
