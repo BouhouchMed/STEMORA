@@ -44,7 +44,7 @@ const columns: Array<[keyof StoredRegistration, string]> = [
 ];
 
 function isAuthorized(request: Request) {
-  const token = process.env.ADMIN_EXPORT_TOKEN;
+  const token = process.env.ADMIN_EXPORT_TOKEN || process.env.ADMIN_PASSWORD;
   const providedToken = request.headers.get("x-admin-token");
   return Boolean(token && providedToken && token === providedToken);
 }
@@ -63,9 +63,9 @@ function toCsv(registrations: StoredRegistration[]) {
 }
 
 export async function GET(request: Request) {
-  if (!process.env.ADMIN_EXPORT_TOKEN) {
+  if (!process.env.ADMIN_EXPORT_TOKEN && !process.env.ADMIN_PASSWORD) {
     return NextResponse.json(
-      { message: "ADMIN_EXPORT_TOKEN is missing. Ajoutez-le dans .env.local." },
+      { message: "ADMIN_EXPORT_TOKEN or ADMIN_PASSWORD is missing. Ajoutez-le dans .env.local." },
       { status: 500 }
     );
   }
