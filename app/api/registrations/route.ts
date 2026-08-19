@@ -77,6 +77,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         message: "Erreur inattendue / وقع خطأ غير متوقع.",
+        error: {
+          message: error instanceof Error ? error.message : "Unknown error"
+        },
         env: getSupabaseEnvStatus()
       },
       { status: 500 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, KeyRound, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
+import { Activity, Download, KeyRound, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,9 @@ export function AdminRegistrations() {
   const [token, setToken] = useState("");
   const [registrations, setRegistrations] = useState<StoredRegistration[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [error, setError] = useState("");
+  const [healthResult, setHealthResult] = useState("");
 
   const count = useMemo(() => registrations.length, [registrations]);
 
@@ -77,6 +79,23 @@ export function AdminRegistrations() {
     }
   }
 
+  async function checkSupabaseHealth() {
+    setIsCheckingHealth(true);
+    setError("");
+    setHealthResult("");
+    try {
+      const response = await fetch("/api/admin/supabase-health", {
+        headers: { "x-admin-token": token }
+      });
+      const result = (await response.json()) as unknown;
+      setHealthResult(JSON.stringify(result, null, 2));
+    } catch (healthError) {
+      setError(healthError instanceof Error ? healthError.message : "Erreur inattendue.");
+    } finally {
+      setIsCheckingHealth(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-navy sm:px-6">
       <section className="mx-auto max-w-6xl">
@@ -98,7 +117,7 @@ export function AdminRegistrations() {
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
             <label className="relative block">
               <span className="mb-2 block text-sm font-semibold">Admin export token</span>
               <KeyRound className="pointer-events-none absolute bottom-4 left-4 h-5 w-5 text-navy/35" />
@@ -118,12 +137,22 @@ export function AdminRegistrations() {
               <Download className="h-4 w-4" />
               Export CSV
             </Button>
+            <Button type="button" variant="secondary" className="self-end" onClick={checkSupabaseHealth} disabled={!token || isCheckingHealth}>
+              {isCheckingHealth ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
+              Test Supabase
+            </Button>
           </div>
 
           {error && (
             <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
               {error}
             </p>
+          )}
+
+          {healthResult && (
+            <pre className="max-h-80 overflow-auto rounded-2xl border border-border bg-navy p-4 text-xs leading-5 text-white">
+              {healthResult}
+            </pre>
           )}
 
           <div className="overflow-hidden rounded-2xl border border-border">
