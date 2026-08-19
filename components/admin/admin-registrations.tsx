@@ -8,16 +8,21 @@ import { Input } from "@/components/ui/input";
 type StoredRegistration = {
   id: string;
   child_name: string;
+  child_birth_date: string;
   child_age?: number;
   school_level: string;
   city_country: string;
+  experience_level: string;
   selected_programs: string[];
   parent_name: string;
   parent_phone: string;
   parent_email: string;
+  preferred_contact: string;
   preferred_days: string[];
   preferred_period: string;
   course_type: string;
+  marketing_consent: boolean;
+  status: string;
   created_at: string;
 };
 
@@ -204,8 +209,102 @@ export function AdminRegistrations() {
               </table>
             </div>
           </div>
+
+          {registrations.length > 0 && (
+            <section className="space-y-4">
+              <div>
+                <h2 className="text-xl font-bold text-navy">Détails complets des inscrits</h2>
+                <p className="mt-1 text-sm font-medium text-navy/60">
+                  Toutes les informations soumises dans le formulaire d&apos;inscription.
+                </p>
+              </div>
+
+              <div className="grid gap-4">
+                {registrations.map((registration) => (
+                  <article key={registration.id} className="rounded-3xl border border-border bg-background/45 p-5">
+                    <div className="flex flex-col justify-between gap-3 border-b border-border pb-4 md:flex-row md:items-start">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wide text-primary">Demande #{registration.id.slice(0, 8)}</p>
+                        <h3 className="mt-1 text-2xl font-bold text-navy">{registration.child_name}</h3>
+                        <p className="mt-1 text-sm font-medium text-navy/60">
+                          Reçue le {new Date(registration.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <span className="inline-flex w-fit rounded-full bg-primary/10 px-3 py-1 text-sm font-bold text-primary">
+                        {registration.status || "new"}
+                      </span>
+                    </div>
+
+                    <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                      <DetailSection
+                        title="Informations de l'enfant"
+                        items={[
+                          ["Nom", registration.child_name],
+                          ["Date de naissance", registration.child_birth_date],
+                          ["Âge", registration.child_age ? `${registration.child_age} ans` : "-"],
+                          ["Niveau scolaire", registration.school_level],
+                          ["Ville / Pays", registration.city_country],
+                          ["Niveau programmation", registration.experience_level]
+                        ]}
+                      />
+                      <DetailSection
+                        title="Programme"
+                        items={[
+                          ["Programmes sélectionnés", formatList(registration.selected_programs)]
+                        ]}
+                      />
+                      <DetailSection
+                        title="Informations du parent"
+                        items={[
+                          ["Nom du parent", registration.parent_name],
+                          ["Téléphone / WhatsApp", registration.parent_phone],
+                          ["Adresse e-mail", registration.parent_email],
+                          ["Contact préféré", registration.preferred_contact]
+                        ]}
+                      />
+                      <DetailSection
+                        title="Disponibilités et cours"
+                        items={[
+                          ["Jours préférés", formatList(registration.preferred_days)],
+                          ["Période préférée", registration.preferred_period],
+                          ["Type de cours", registration.course_type]
+                        ]}
+                      />
+                      <DetailSection
+                        title="Consentements"
+                        items={[
+                          ["Contact inscription", "Accepté"],
+                          ["Nouveautés / marketing", registration.marketing_consent ? "Oui" : "Non"]
+                        ]}
+                      />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </section>
     </main>
   );
+}
+
+function DetailSection({ title, items }: { title: string; items: Array<[string, string]> }) {
+  return (
+    <section className="rounded-2xl border border-border bg-white p-4">
+      <h4 className="text-sm font-bold uppercase tracking-wide text-navy/55">{title}</h4>
+      <dl className="mt-3 space-y-3">
+        {items.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs font-bold uppercase tracking-wide text-navy/45">{label}</dt>
+            <dd className="mt-1 break-words text-sm font-semibold text-navy">{value || "-"}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+function formatList(items: string[]) {
+  return items.length > 0 ? items.join(", ") : "-";
 }
