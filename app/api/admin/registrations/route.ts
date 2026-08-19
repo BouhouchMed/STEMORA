@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin-auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 type StoredRegistration = {
@@ -43,12 +44,6 @@ const columns: Array<[keyof StoredRegistration, string]> = [
   ["marketing_consent", "Marketing consent"]
 ];
 
-function isAuthorized(request: Request) {
-  const token = process.env.ADMIN_EXPORT_TOKEN || process.env.ADMIN_PASSWORD;
-  const providedToken = request.headers.get("x-admin-token");
-  return Boolean(token && providedToken && token === providedToken);
-}
-
 function csvEscape(value: unknown) {
   const normalized = Array.isArray(value) ? value.join(" | ") : String(value ?? "");
   return `"${normalized.replaceAll('"', '""')}"`;
@@ -70,7 +65,7 @@ export async function GET(request: Request) {
     );
   }
 
-  if (!isAuthorized(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json(
       { message: "Accès refusé. رمز الإدارة غير صحيح." },
       { status: 401 }

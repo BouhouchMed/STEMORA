@@ -1,7 +1,7 @@
 "use client";
 
-import { Activity, Download, KeyRound, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Activity, Download, KeyRound, Loader2, LogOut, RefreshCw, ShieldCheck, UserRound } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -27,7 +27,11 @@ type StoredRegistration = {
 };
 
 export function AdminRegistrations() {
-  const [token, setToken] = useState("");
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [registrations, setRegistrations] = useState<StoredRegistration[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
@@ -36,13 +40,59 @@ export function AdminRegistrations() {
 
   const count = useMemo(() => registrations.length, [registrations]);
 
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const response = await fetch("/api/admin/session");
+        const result = (await response.json()) as { authenticated?: boolean };
+        setIsAuthenticated(Boolean(result.authenticated));
+      } finally {
+        setIsCheckingSession(false);
+      }
+    }
+
+    void checkSession();
+  }, []);
+
+  async function login(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoggingIn(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+      const result = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        throw new Error(result.message || "Connexion impossible.");
+      }
+
+      setPassword("");
+      setIsAuthenticated(true);
+      await loadRegistrations();
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : "Erreur inattendue.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  async function logout() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    setIsAuthenticated(false);
+    setRegistrations([]);
+    setHealthResult("");
+  }
+
   async function loadRegistrations() {
     setIsLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/registrations", {
-        headers: { "x-admin-token": token }
-      });
+      const response = await fetch("/api/admin/registrations");
       const result = (await response.json()) as {
         registrations?: StoredRegistration[];
         message?: string;
@@ -64,7 +114,7 @@ export function AdminRegistrations() {
     setError("");
     try {
       const response = await fetch("/api/admin/registrations?format=csv", {
-        headers: { "x-admin-token": token }
+        credentials: "same-origin"
       });
 
       if (!response.ok) {
@@ -89,9 +139,7 @@ export function AdminRegistrations() {
     setError("");
     setHealthResult("");
     try {
-      const response = await fetch("/api/admin/supabase-health", {
-        headers: { "x-admin-token": token }
-      });
+      const response = await fetch("/api/admin/supabase-health");
       const result = (await response.json()) as unknown;
       setHealthResult(JSON.stringify(result, null, 2));
     } catch (healthError) {
@@ -99,6 +147,58 @@ export function AdminRegistrations() {
     } finally {
       setIsCheckingHealth(false);
     }
+  }
+
+  if (isCheckingSession) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 text-navy">
+        <div className="flex items-center gap-3 rounded-3xl border border-border bg-white px-5 py-4 shadow-soft">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span className="font-semibold">Chargement admin...</span>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 py-8 text-navy">
+        <form onSubmit={login} className="w-full max-w-md rounded-3xl border border-border bg-white p-6 shadow-premium">
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/8 px-3 py-1 text-sm font-bold text-primary">
+            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            Admin STEMORA
+          </div>
+          <h1 className="mt-5 text-3xl font-bold">Connexion admin</h1>
+          <p className="mt-2 text-sm font-medium leading-6 text-navy/65">
+            Entrez le nom d&apos;utilisateur et le mot de passe pour accéder aux inscriptions.
+          </p>
+
+          <div className="mt-6 space-y-4">
+            <label className="relative block">
+              <span className="mb-2 block text-sm font-semibold">Nom d&apos;utilisateur</span>
+              <UserRound className="pointer-events-none absolute bottom-4 left-4 h-5 w-5 text-navy/35" />
+              <Input value={username} onChange={(event) => setUsername(event.target.value)} className="pl-12" autoComplete="username" />
+            </label>
+            <label className="relative block">
+              <span className="mb-2 block text-sm font-semibold">Mot de passe</span>
+              <KeyRound className="pointer-events-none absolute bottom-4 left-4 h-5 w-5 text-navy/35" />
+              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="pl-12" autoComplete="current-password" />
+            </label>
+          </div>
+
+          {error && (
+            <p role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              {error}
+            </p>
+          )}
+
+          <Button type="submit" size="lg" className="mt-6 w-full" disabled={!username || !password || isLoggingIn}>
+            {isLoggingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            Se connecter
+          </Button>
+        </form>
+      </main>
+    );
   }
 
   return (
@@ -116,33 +216,28 @@ export function AdminRegistrations() {
                 Chargez les demandes enregistrées dans Supabase, puis exportez-les en CSV.
               </p>
             </div>
-            <div className="rounded-2xl bg-accent/16 px-5 py-4 text-center">
-              <p className="text-3xl font-bold">{count}</p>
-              <p className="text-sm font-semibold text-navy/65">nouveaux</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="rounded-2xl bg-accent/16 px-5 py-4 text-center">
+                <p className="text-3xl font-bold">{count}</p>
+                <p className="text-sm font-semibold text-navy/65">nouveaux</p>
+              </div>
+              <Button type="button" variant="secondary" onClick={logout}>
+                <LogOut className="h-4 w-4" />
+                Déconnexion
+              </Button>
             </div>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
-            <label className="relative block">
-              <span className="mb-2 block text-sm font-semibold">Admin export token</span>
-              <KeyRound className="pointer-events-none absolute bottom-4 left-4 h-5 w-5 text-navy/35" />
-              <Input
-                type="password"
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                className="pl-12"
-                placeholder="ADMIN_EXPORT_TOKEN"
-              />
-            </label>
-            <Button type="button" className="self-end" onClick={loadRegistrations} disabled={!token || isLoading}>
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" onClick={loadRegistrations} disabled={isLoading}>
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Charger
             </Button>
-            <Button type="button" variant="accent" className="self-end" onClick={exportCsv} disabled={!token}>
+            <Button type="button" variant="accent" onClick={exportCsv}>
               <Download className="h-4 w-4" />
               Export CSV
             </Button>
-            <Button type="button" variant="secondary" className="self-end" onClick={checkSupabaseHealth} disabled={!token || isCheckingHealth}>
+            <Button type="button" variant="secondary" onClick={checkSupabaseHealth} disabled={isCheckingHealth}>
               {isCheckingHealth ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
               Test Supabase
             </Button>

@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
+import { isAdminRequest } from "@/lib/admin-auth";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-
-function isAuthorized(request: Request) {
-  const token = process.env.ADMIN_EXPORT_TOKEN || process.env.ADMIN_PASSWORD;
-  const providedToken = request.headers.get("x-admin-token");
-  return Boolean(token && providedToken && token === providedToken);
-}
 
 function getSupabaseEnvStatus() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -34,7 +29,7 @@ function safeHost(value: string) {
 }
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isAdminRequest(request)) {
     return NextResponse.json({ message: "Accès refusé. رمز الإدارة غير صحيح." }, { status: 401 });
   }
 
