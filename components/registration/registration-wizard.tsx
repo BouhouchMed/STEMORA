@@ -29,6 +29,7 @@ import {
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { Controller, FieldErrors, useForm, UseFormReturn } from "react-hook-form";
+import { CloudflareTurnstile } from "@/components/cloudflare-turnstile";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -114,6 +115,8 @@ const copy = {
     submit: "Envoyer ma demande d'inscription",
     submitting: "Envoi en cours...",
     submitError: "Une erreur est survenue. Veuillez réessayer.",
+    captchaRequired: "Veuillez valider le Captcha avant l'envoi.",
+    captchaError: "Captcha invalide. Veuillez réessayer.",
     successTitle: "🎉 Demande reçue !",
     successText:
       "Merci pour votre confiance. L'équipe STEMORA examinera votre demande et vous contactera pour vous proposer le programme, le niveau et les horaires les plus adaptés à votre enfant.",
@@ -183,6 +186,8 @@ const copy = {
     submit: "إرسال طلب التسجيل",
     submitting: "جاري الإرسال...",
     submitError: "حدث خطأ. يرجى المحاولة مرة أخرى.",
+    captchaRequired: "يرجى تأكيد الكابتشا قبل الإرسال.",
+    captchaError: "الكابتشا غير صحيحة. يرجى المحاولة من جديد.",
     successTitle: "🎉 تم استلام الطلب!",
     successText:
       "شكراً على ثقتك. سيقوم فريق STEMORA بمراجعة الطلب والتواصل معك لاقتراح البرنامج والمستوى والتوقيت الأنسب لطفلك.",
@@ -251,6 +256,8 @@ const copy = {
     submit: "إرسال طلب التسجيل",
     submitting: "جاري الإرسال...",
     submitError: "وقع خطأ. عاود حاول من فضلك.",
+    captchaRequired: "أكد الكابتشا قبل ما ترسل.",
+    captchaError: "الكابتشا ما خدمتهاش. عاود حاول من فضلك.",
     successTitle: "🎉 وصلنا طلبك!",
     successText:
       "شكراً على الثقة ديالك. فريق STEMORA غادي يراجع الطلب ويتواصل معاك باش يقترح البرنامج والتوقيت الأنسب لطفلك.",
@@ -455,8 +462,11 @@ export function RegistrationWizard() {
   const [locale, setLocale] = useState<Locale>("fr");
   const [step, setStep] = useState(0);
   const [submitError, setSubmitError] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileRenderKey, setTurnstileRenderKey] = useState(0);
   const [isSuccess, setIsSuccess] = useState(false);
   const t = copy[locale];
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
   const schema = useMemo(() => createRegistrationSchema(locale), [locale]);
   const form = useForm<RegistrationFormValues>({
     resolver: zodResolver(schema),
@@ -478,11 +488,17 @@ export function RegistrationWizard() {
 
   async function submit(values: RegistrationFormValues) {
     setSubmitError("");
+
+    if (turnstileSiteKey && !turnstileToken) {
+      setSubmitError(t.captchaRequired);
+      return;
+    }
+
     try {
       const response = await fetch("/api/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values)
+        body: JSON.stringify({ ...values, turnstileToken })
       });
       const result = (await response.json()) as { message?: string };
       if (!response.ok) throw new Error(result.message || t.submitError);
@@ -490,6 +506,8 @@ export function RegistrationWizard() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : t.submitError);
+      setTurnstileToken("");
+      setTurnstileRenderKey((current) => current + 1);
     }
   }
 
@@ -543,7 +561,30 @@ export function RegistrationWizard() {
             </motion.div>
           </AnimatePresence>
 
-          <FormNavigation step={step} isSubmitting={form.formState.isSubmitting} onBack={goBack} onNext={goNext} t={t} isRtl={isRtl} />
+          {step === 4 && turnstileSiteKey && (
+            <div className="mt-6 rounded-2xl border border-border bg-white p-4">
+              <CloudflareTurnstile
+                key={turnstileRenderKey}
+                siteKey={turnstileSiteKey}
+                onVerify={setTurnstileToken}
+                onExpire={() => setTurnstileToken("")}
+                onError={() => {
+                  setTurnstileToken("");
+                  setSubmitError(t.captchaError);
+                }}
+              />
+            </div>
+          )}
+
+          <FormNavigation
+            step={step}
+            isSubmitting={form.formState.isSubmitting}
+            isSubmitDisabled={step === 4 && Boolean(turnstileSiteKey) && !turnstileToken}
+            onBack={goBack}
+            onNext={goNext}
+            t={t}
+            isRtl={isRtl}
+          />
         </form>
       </section>
     </main>
@@ -759,13 +800,13 @@ function ConfirmationStep({ form, goToStep, submitError, locale }: { form: Wizar
   );
 }
 
-function FormNavigation({ step, isSubmitting, onBack, onNext, t, isRtl }: { step: number; isSubmitting: boolean; onBack: () => void; onNext: () => void; t: T; isRtl: boolean }) {
+function FormNavigation({ step, isSubmitting, isSubmitDisabled, onBack, onNext, t, isRtl }: { step: number; isSubmitting: boolean; isSubmitDisabled: boolean; onBack: () => void; onNext: () => void; t: T; isRtl: boolean }) {
   const BackIcon = isRtl ? ArrowRight : ArrowLeft;
   const NextIcon = isRtl ? ArrowLeft : ArrowRight;
   return (
     <div className="sticky bottom-0 -mx-4 mt-8 flex items-center justify-between gap-3 border-t border-border bg-white/94 p-4 backdrop-blur sm:static sm:mx-0 sm:border-t-0 sm:bg-transparent sm:p-0">
       {step > 0 ? <Button type="button" variant="secondary" onClick={onBack}><BackIcon className="h-4 w-4" aria-hidden="true" />{t.back}</Button> : <span />}
-      {step < 4 ? <Button type="button" onClick={onNext} size="lg">{t.next}<NextIcon className="h-4 w-4" aria-hidden="true" /></Button> : <Button type="submit" size="lg" disabled={isSubmitting}><LockKeyhole className="h-4 w-4" aria-hidden="true" />{isSubmitting ? t.submitting : t.submit}<NextIcon className="h-4 w-4" aria-hidden="true" /></Button>}
+      {step < 4 ? <Button type="button" onClick={onNext} size="lg">{t.next}<NextIcon className="h-4 w-4" aria-hidden="true" /></Button> : <Button type="submit" size="lg" disabled={isSubmitting || isSubmitDisabled}><LockKeyhole className="h-4 w-4" aria-hidden="true" />{isSubmitting ? t.submitting : t.submit}<NextIcon className="h-4 w-4" aria-hidden="true" /></Button>}
     </div>
   );
 }

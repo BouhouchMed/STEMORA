@@ -2,6 +2,7 @@
 
 import { Activity, Download, KeyRound, Loader2, LogOut, RefreshCw, ShieldCheck, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { CloudflareTurnstile } from "@/components/cloudflare-turnstile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -29,6 +30,8 @@ type StoredRegistration = {
 export function AdminRegistrations() {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileRenderKey, setTurnstileRenderKey] = useState(0);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -37,6 +40,7 @@ export function AdminRegistrations() {
   const [isCheckingHealth, setIsCheckingHealth] = useState(false);
   const [error, setError] = useState("");
   const [healthResult, setHealthResult] = useState("");
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "";
 
   const count = useMemo(() => registrations.length, [registrations]);
 
@@ -59,11 +63,17 @@ export function AdminRegistrations() {
     setIsLoggingIn(true);
     setError("");
 
+    if (turnstileSiteKey && !turnstileToken) {
+      setIsLoggingIn(false);
+      setError("Veuillez valider le Captcha. المرجو تأكيد الكابتشا.");
+      return;
+    }
+
     try {
       const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, turnstileToken })
       });
       const result = (await response.json()) as { message?: string };
 
@@ -76,6 +86,8 @@ export function AdminRegistrations() {
       await loadRegistrations();
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : "Erreur inattendue.");
+      setTurnstileToken("");
+      setTurnstileRenderKey((current) => current + 1);
     } finally {
       setIsLoggingIn(false);
     }
@@ -186,13 +198,28 @@ export function AdminRegistrations() {
             </label>
           </div>
 
+          {turnstileSiteKey && (
+            <div className="mt-5 rounded-2xl border border-border bg-background/45 p-3">
+              <CloudflareTurnstile
+                key={turnstileRenderKey}
+                siteKey={turnstileSiteKey}
+                onVerify={setTurnstileToken}
+                onExpire={() => setTurnstileToken("")}
+                onError={() => {
+                  setTurnstileToken("");
+                  setError("Captcha invalide. المرجو المحاولة من جديد.");
+                }}
+              />
+            </div>
+          )}
+
           {error && (
             <p role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
               {error}
             </p>
           )}
 
-          <Button type="submit" size="lg" className="mt-6 w-full" disabled={!username || !password || isLoggingIn}>
+          <Button type="submit" size="lg" className="mt-6 w-full" disabled={!username || !password || isLoggingIn || (Boolean(turnstileSiteKey) && !turnstileToken)}>
             {isLoggingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
             Se connecter
           </Button>

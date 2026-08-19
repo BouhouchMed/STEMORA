@@ -4,10 +4,20 @@ import {
   setAdminSessionCookie,
   verifyAdminCredentials
 } from "@/lib/admin-auth";
+import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as { username?: string; password?: string };
+    const body = (await request.json()) as { username?: string; password?: string; turnstileToken?: string };
+    const turnstileCheck = await verifyTurnstileToken(body.turnstileToken, request);
+
+    if (!turnstileCheck.ok) {
+      return NextResponse.json(
+        { message: turnstileCheck.message },
+        { status: turnstileCheck.status }
+      );
+    }
+
     const username = body.username?.trim() || "";
     const password = body.password || "";
 

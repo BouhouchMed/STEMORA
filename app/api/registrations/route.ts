@@ -1,18 +1,33 @@
 import { NextResponse } from "next/server";
 import { calculateAge, registrationSchema } from "@/lib/registration-schema";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import { getTurnstileEnvStatus, verifyTurnstileToken } from "@/lib/turnstile";
 
 function getSupabaseEnvStatus() {
   return {
     hasSupabaseUrl: Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
     hasServiceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    hasAnonKey: Boolean(process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    hasAnonKey: Boolean(process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
+    turnstile: getTurnstileEnvStatus()
   };
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const turnstileCheck = await verifyTurnstileToken(body.turnstileToken, request);
+
+    if (!turnstileCheck.ok) {
+      return NextResponse.json(
+        {
+          message: turnstileCheck.message,
+          errorCodes: "errorCodes" in turnstileCheck ? turnstileCheck.errorCodes : undefined,
+          env: getSupabaseEnvStatus()
+        },
+        { status: turnstileCheck.status }
+      );
+    }
+
     const parsed = registrationSchema.safeParse(body);
 
     if (!parsed.success) {
